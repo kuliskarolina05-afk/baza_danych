@@ -1,12 +1,6 @@
 import streamlit as st
 from supabase import create_client, Client
 
-# --- KONFIGURACJA POŁĄCZENIA ---
-# Zastąp poniższe dane swoimi poświadczeniami z Supabase Settings -> API
-SUPABASE_URL = "TWOJ_URL_SUPABASE"
-SUPABASE_KEY = "TWOJ_KEY_ANON_PUBLIC"
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def main():
     st.set_page_config(page_title="Zarządzanie Magazynem", layout="centered")
