@@ -1,7 +1,6 @@
 import streamlit as st
 from supabase import create_client, Client
 
-# --- KONFIGURACJA POŁĄCZENIA ---
 @st.cache_resource
 def init_connection():
     try:
@@ -31,17 +30,15 @@ def main():
         
         with t1:
             try:
-                # Tabela z DUŻEJ litery
                 res_p = supabase.table("Produkty").select("*").execute()
-                st.dataframe(res_p.data if res_p.data else "Brak danych w tabeli Produkty")
+                st.dataframe(res_p.data if res_p.data else "Brak danych")
             except Exception as e:
                 st.error(f"Błąd tabeli 'Produkty': {e}")
 
         with t2:
             try:
-                # Tabela z MAŁEJ litery
                 res_k = supabase.table("kategorie").select("*").execute()
-                st.dataframe(res_k.data if res_k.data else "Brak danych w tabeli kategorie")
+                st.dataframe(res_k.data if res_k.data else "Brak danych")
             except Exception as e:
                 st.error(f"Błąd tabeli 'kategorie': {e}")
 
@@ -49,13 +46,19 @@ def main():
     elif choice == "Dodaj Kategorię":
         st.header("Dodaj nową kategorię")
         with st.form("form_kat", clear_on_submit=True):
-            nazwa_kat = st.text_input("Nazwa kategorii")
-            opis_kat = st.text_area("Opis")
+            val_nazwa = st.text_input("Nazwa kategorii")
+            val_opis = st.text_area("Opis")
             if st.form_submit_button("Zapisz kategorię"):
-                if nazwa_kat:
-                    # Używamy małej litery 'kategorie'
-                    supabase.table("kategorie").insert({"nazwa": nazwa_kat, "opis": opis_kat}).execute()
-                    st.success(f"Dodano kategorię: {nazwa_kat}")
+                if val_nazwa:
+                    try:
+                        # Zmieniono na 'Nazwa' i 'Opis' (duże litery)
+                        supabase.table("kategorie").insert({
+                            "Nazwa": val_nazwa, 
+                            "Opis": val_opis
+                        }).execute()
+                        st.success(f"Dodano kategorię: {val_nazwa}")
+                    except Exception as e:
+                        st.error(f"Błąd zapisu: {e}")
                 else:
                     st.warning("Nazwa jest wymagana.")
 
@@ -63,32 +66,33 @@ def main():
     elif choice == "Dodaj Produkt":
         st.header("Dodaj nowy produkt")
         
-        # Pobieranie kategorii (mała litera)
         kategorie_opcje = {}
         try:
-            res_kat = supabase.table("kategorie").select("id, nazwa").execute()
-            kategorie_opcje = {item['nazwa']: item['id'] for item in res_kat.data} if res_kat.data else {}
+            # Poprawione na "id, Nazwa"
+            res_kat = supabase.table("kategorie").select("id, Nazwa").execute()
+            if res_kat.data:
+                kategorie_opcje = {item['Nazwa']: item['id'] for item in res_kat.data}
         except Exception as e:
-            st.error(f"Nie udało się pobrać kategorii: {e}")
+            st.error(f"Błąd pobierania kategorii: {e}")
 
         with st.form("form_prod", clear_on_submit=True):
-            nazwa_prod = st.text_input("Nazwa produktu")
-            cena = st.number_input("Cena", min_value=0.0, format="%.2f")
-            ilosc = st.number_input("Ilość", min_value=0, step=1)
+            p_nazwa = st.text_input("Nazwa produktu")
+            p_cena = st.number_input("Cena", min_value=0.0, format="%.2f")
+            p_ilosc = st.number_input("Ilość", min_value=0, step=1)
             wybrana_kat = st.selectbox("Kategoria", list(kategorie_opcje.keys()) if kategorie_opcje else ["Brak"])
             
             if st.form_submit_button("Dodaj produkt"):
-                if nazwa_prod and kategorie_opcje:
+                if p_nazwa and kategorie_opcje:
                     try:
-                        # Używamy dużej litery 'Produkty'
+                        # Tutaj również używamy dużych liter dla kolumn
                         data = {
-                            "nazwa": nazwa_prod,
-                            "cena": cena,
-                            "ilosc": ilosc,
-                            "kategoria_id": kategorie_opcje[wybrana_kat]
+                            "Nazwa": p_nazwa,
+                            "Cena": p_cena,
+                            "Ilość": p_ilosc,
+                            "Kategoria_id": kategorie_opcje[wybrana_kat]
                         }
                         supabase.table("Produkty").insert(data).execute()
-                        st.success(f"Dodano produkt: {nazwa_prod}")
+                        st.success(f"Dodano produkt: {p_nazwa}")
                     except Exception as e:
                         st.error(f"Błąd podczas dodawania: {e}")
 
