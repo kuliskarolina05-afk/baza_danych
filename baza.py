@@ -31,7 +31,6 @@ def main():
         
         with tab1:
             try:
-                # Tabela Produkty (duża litera)
                 res_p = supabase.table("Produkty").select("*").execute()
                 if res_p.data:
                     st.dataframe(res_p.data, use_container_width=True)
@@ -42,7 +41,6 @@ def main():
 
         with tab2:
             try:
-                # Tabela kategorie (mała litera)
                 res_k = supabase.table("kategorie").select("*").execute()
                 if res_k.data:
                     st.dataframe(res_k.data, use_container_width=True)
@@ -55,7 +53,6 @@ def main():
     elif choice == "Dodaj Kategorię":
         st.header("Dodaj nową kategorię")
         with st.form("form_kat", clear_on_submit=True):
-            # Używamy dużej litery 'Nazwa' i 'Opis' zgodnie z Twoim schematem
             val_nazwa = st.text_input("Nazwa kategorii")
             val_opis = st.text_area("Opis")
             submit_kat = st.form_submit_button("Zapisz kategorię")
@@ -77,7 +74,6 @@ def main():
     elif choice == "Dodaj Produkt":
         st.header("Dodaj nowy produkt")
         
-        # Pobieranie dostępnych kategorii do listy
         kategorie_opcje = {}
         try:
             res_kat = supabase.table("kategorie").select("id, Nazwa").execute()
@@ -89,7 +85,8 @@ def main():
         with st.form("form_prod", clear_on_submit=True):
             p_nazwa = st.text_input("Nazwa produktu")
             p_cena = st.number_input("Cena", min_value=0.0, format="%.2f")
-            p_ilosc = st.number_input("Ilość", min_value=0, step=1)
+            # ZMIANA: Etykieta formularza na "Liczba"
+            p_liczba = st.number_input("Liczba", min_value=0, step=1)
             wybrana_kat = st.selectbox(
                 "Wybierz kategorię", 
                 options=list(kategorie_opcje.keys()) if kategorie_opcje else ["Brak kategorii"]
@@ -102,15 +99,15 @@ def main():
                     st.error("Błąd: Najpierw musisz dodać kategorię!")
                 elif p_nazwa:
                     try:
-                        # Mapowanie kolumn (Uwzględniam brak polskich znaków w 'Ilosc')
+                        # ZMIANA: Klucz w słowniku zmieniony na "Liczba"
                         data_to_insert = {
                             "Nazwa": p_nazwa,
                             "Cena": p_cena,
-                            "Ilosc": p_ilosc,
+                            "Liczba": p_liczba,
                             "kategoria_id": kategorie_opcje[wybrana_kat]
                         }
                         supabase.table("Produkty").insert(data_to_insert).execute()
-                        st.success(f"Dodano produkt: {p_nazwa}")
+                        st.success(f"Dodano produkt: {p_nazwa} (sztuk: {p_liczba})")
                     except Exception as e:
                         st.error(f"Błąd podczas dodawania produktu: {e}")
                 else:
