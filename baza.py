@@ -1,7 +1,8 @@
 import streamlit as st
 from supabase import create_client, Client
+import pandas as pd
 
-# --- 1. INICJALIZACJA POŁĄCZENIA ---
+# --- 1. POŁĄCZENIE ---
 @st.cache_resource
 def init_connection():
     try:
@@ -9,7 +10,7 @@ def init_connection():
         key = st.secrets["SUPABASE_KEY"]
         return create_client(url, key)
     except Exception as e:
-        st.error(f"❌ Brak konfiguracji w secrets.toml: {e}")
+        st.error(f"❌ Błąd połączenia: {e}")
         return None
 
 supabase = init_connection()
@@ -21,97 +22,78 @@ def main():
     if not supabase:
         st.stop()
 
-    menu = ["Podgląd Bazy", "Dodaj Produkt", "Dodaj Kategorię"]
+    menu = ["📊 Dashboard", "🛒 Produkty", "📂 Kategorie", "➕ Dodaj Nowy"]
     choice = st.sidebar.selectbox("Menu", menu)
 
-    # --- 2. SEKCJA: PODGLĄD BAZY ---
-    if choice == "Podgląd Bazy":
-        st.header("Aktualny stan magazynowy")
-        tab1, tab2 = st.tabs(["🛒 Produkty", "📂 Kategorie"])
-        
-        with tab1:
-            try:
-                res_p = supabase.table("Produkty").select("*").execute()
-                if res_p.data:
-                    st.dataframe(res_p.data, use_container_width=True)
-                else:
-                    st.info("Tabela Produkty jest pusta.")
-            except Exception as e:
-                st.error(f"Błąd tabeli Produkty: {e}")
-
-        with tab2:
-            try:
-                res_k = supabase.table("kategorie").select("*").execute()
-                if res_k.data:
-                    st.dataframe(res_k.data, use_container_width=True)
-                else:
-                    st.info("Tabela kategorie jest pusta.")
-            except Exception as e:
-                st.error(f"Błąd tabeli kategorie: {e}")
-
-    # --- 3. SEKCJA: DODAWANIE KATEGORII ---
-    elif choice == "Dodaj Kategorię":
-        st.header("Dodaj nową kategorię")
-        with st.form("form_kat", clear_on_submit=True):
-            val_nazwa = st.text_input("Nazwa kategorii")
-            val_opis = st.text_area("Opis")
-            submit_kat = st.form_submit_button("Zapisz kategorię")
-
-            if submit_kat:
-                if val_nazwa:
-                    try:
-                        supabase.table("kategorie").insert({
-                            "Nazwa": val_nazwa, 
-                            "Opis": val_opis
-                        }).execute()
-                        st.success(f"Dodano kategorię: {val_nazwa}")
-                    except Exception as e:
-                        st.error(f"Błąd zapisu kategorii: {e}")
-                else:
-                    st.warning("Nazwa kategorii jest wymagana.")
-
-    # --- 4. SEKCJA: DODAWANIE PRODUKTU ---
-    elif choice == "Dodaj Produkt":
-        st.header("Dodaj nowy produkt")
-        
-        kategorie_opcje = {}
+    # --- 2. DASHBOARD ---
+    if choice == "📊 Dashboard":
+        st.header("Statystyki magazynu")
         try:
-            res_kat = supabase.table("kategorie").select("id, Nazwa").execute()
-            if res_kat.data:
-                kategorie_opcje = {item['Nazwa']: item['id'] for item in res_kat.data}
+            # Pobieramy dane z tabeli 'produkty' (mała litera wg schematu)
+            res = supabase.table("produkty").select("*").execute()
+            if res.data:
+                df = pd.DataFrame(res.data)
+                
+                col1, col2, col3 = st.columns(3)
+                total_val = (df['cena'] * df['liczba']).sum()
+                col1.metric("Wartość towarów", f"{total_val:,.2f} zł")
+                col2.metric("Suma sztuk", int(df['liczba'].sum()))
+                col3.metric("Liczba pozycji", len(df))
+
+                st.subheader("Stany magazynowe")
+                st.bar_chart(df.set_index("nazwa")["liczba"])
+            else:
+                st.info("Brak danych.")
         except Exception as e:
-            st.error(f"Nie udało się pobrać kategorii: {e}")
+            st.error(f"Błąd dashboardu: {e}")
 
-        with st.form("form_prod", clear_on_submit=True):
-            p_nazwa = st.text_input("Nazwa produktu")
-            p_cena = st.number_input("Cena", min_value=0.0, format="%.2f")
-            # ZMIANA: Etykieta formularza na "Liczba"
-            p_liczba = st.number_input("Liczba", min_value=0, step=1)
-            wybrana_kat = st.selectbox(
-                "Wybierz kategorię", 
-                options=list(kategorie_opcje.keys()) if kategorie_opcje else ["Brak kategorii"]
-            )
+    # --- 3. PODGLĄD TABEL ---
+    elif choice == "🛒 Produkty":
+        st.header("Tabela Produkty")
+        res = supabase.table("produkty").select("*").execute()
+        st.dataframe(res.data, use_container_width=True)
+
+    elif choice == "📂 Kategorie":
+        st.header("Tabela Kategorie")
+        res = supabase.table("Kategorie").select("*").execute()
+        st.dataframe(res.data, use_container_width=True)
+
+    # --- 4. DODAWANIE (Z MAPOWANIEM KOLUMN ZE ZDJĘCIA) ---
+    elif choice == "➕ Dodaj Nowy":
+        tab1, tab2 = st.tabs(["Produkt", "Kategorię"])
+        
+        with tab2:
+            with st.form("form_kat"):
+                # Tabela 'Kategorie' -> kolumny 'Nazwa', 'Opis' (duże litery wg schematu)
+                k_nazwa = st.text_input("Nazwa kategorii")
+                k_opis = st.text_area("Opis")
+                if st.form_submit_button("Dodaj kategorię"):
+                    supabase.table("Kategorie").insert({"Nazwa": k_nazwa, "Opis": k_opis}).execute()
+                    st.success("Dodano kategorię!")
+                    st.rerun()
+
+        with tab1:
+            # Pobranie kategorii do selectboxa
+            res_k = supabase.table("Kategorie").select("id, Nazwa").execute()
+            kat_dict = {item['Nazwa']: item['id'] for item in res_k.data} if res_k.data else {}
             
-            submit_prod = st.form_submit_button("Dodaj produkt")
-
-            if submit_prod:
-                if not kategorie_opcje:
-                    st.error("Błąd: Najpierw musisz dodać kategorię!")
-                elif p_nazwa:
-                    try:
-                        # ZMIANA: Klucz w słowniku zmieniony na "Liczba"
-                        data_to_insert = {
-                            "Nazwa": p_nazwa,
-                            "Cena": p_cena,
-                            "Liczba": p_liczba,
-                            "kategoria_id": kategorie_opcje[wybrana_kat]
-                        }
-                        supabase.table("Produkty").insert(data_to_insert).execute()
-                        st.success(f"Dodano produkt: {p_nazwa} (sztuk: {p_liczba})")
-                    except Exception as e:
-                        st.error(f"Błąd podczas dodawania produktu: {e}")
-                else:
-                    st.warning("Podaj nazwę produktu.")
+            with st.form("form_prod"):
+                # Tabela 'produkty' -> kolumny małe: nazwa, cena, liczba, kategoria_id
+                p_nazwa = st.text_input("Nazwa produktu")
+                p_cena = st.number_input("Cena", min_value=0.0)
+                p_liczba = st.number_input("Liczba", min_value=0)
+                p_kat = st.selectbox("Wybierz kategorię", options=list(kat_dict.keys()))
+                
+                if st.form_submit_button("Dodaj produkt"):
+                    new_data = {
+                        "nazwa": p_nazwa,
+                        "cena": p_cena,
+                        "liczba": p_liczba,
+                        "kategoria_id": kat_dict[p_kat]
+                    }
+                    supabase.table("produkty").insert(new_data).execute()
+                    st.success("Produkt dodany!")
+                    st.rerun()
 
 if __name__ == "__main__":
     main()
