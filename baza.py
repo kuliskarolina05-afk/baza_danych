@@ -37,7 +37,7 @@ def main():
                 if nazwa_kat:
                     try:
                         # WAŻNE: Sprawdź czy w Supabase masz "Kategorie" czy "kategorie"
-                        res = supabase.table("Kategorie").insert({"nazwa": nazwa_kat, "opis": opis_kat}).execute()
+                        res = supabase.table("kategorie").insert({"nazwa": nazwa_kat, "opis": opis_kat}).execute()
                         st.success(f"Dodano kategorię: {nazwa_kat}")
                     except Exception as e:
                         st.error(f"Błąd zapisu: {e}")
@@ -51,7 +51,7 @@ def main():
         kategorie_opcje = {}
         try:
             # Pobieranie kategorii
-            res_kat = supabase.table("Kategorie").select("id, nazwa").execute()
+            res_kat = supabase.table("kategorie").select("id, nazwa").execute()
             if res_kat.data:
                 kategorie_opcje = {item['nazwa']: item['id'] for item in res_kat.data}
             else:
@@ -103,7 +103,7 @@ def main():
                 
         with tab2:
             try:
-                res_k = supabase.table("Kategorie").select("*").execute()
+                res_k = supabase.table("kategorie").select("*").execute()
                 st.dataframe(res_k.data if res_k.data else "Brak danych")
             except Exception as e:
                 st.error(f"Nie można pobrać Kategorii: {e}")
