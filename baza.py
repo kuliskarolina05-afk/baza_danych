@@ -33,7 +33,7 @@ def main():
             if res.data:
                 df = pd.DataFrame(res.data)
                 col1, col2, col3 = st.columns(3)
-                # Używamy małych liter dla produktów
+                # Obliczenia
                 total_val = (df['cena'] * df['liczba']).sum()
                 col1.metric("Wartość towarów", f"{total_val:,.2f} zł")
                 col2.metric("Suma sztuk", int(df['liczba'].sum()))
@@ -59,7 +59,6 @@ def main():
         
         with tab2:
             with st.form("form_kat"):
-                # Kategorie: kolumny Nazwa, Opis (z dużych - wg błędu)
                 k_nazwa = st.text_input("Nazwa kategorii")
                 k_opis = st.text_area("Opis")
                 if st.form_submit_button("Zapisz kategorię"):
@@ -72,27 +71,31 @@ def main():
 
         with tab1:
             try:
-                # Tu musi być Nazwa z dużej, skoro wcześniej był błąd!
+                # Pobieramy kategorie
                 res_k = supabase.table("kategorie").select("id, Nazwa").execute()
                 kat_dict = {item['Nazwa']: item['id'] for item in res_k.data} if res_k.data else {}
                 
                 with st.form("form_prod"):
                     p_nazwa = st.text_input("Nazwa produktu")
-                    p_cena = st.number_input("Cena", min_value=0.0)
-                    p_liczba = st.number_input("Liczba", min_value=0)
+                    # Ustawiamy step=1, aby sugerować liczby całkowite
+                    p_cena = st.number_input("Cena (tylko liczby całkowite)", min_value=0, step=1)
+                    p_liczba = st.number_input("Liczba", min_value=0, step=1)
                     p_kat = st.selectbox("Kategoria", options=list(kat_dict.keys()))
                     
                     if st.form_submit_button("Dodaj produkt"):
-                        # Produkty: wszystko z małej (nazwa, cena, liczba, kategoria_id)
-                        new_prod = {
-                            "nazwa": p_nazwa,
-                            "cena": p_cena,
-                            "liczba": p_liczba,
-                            "kategoria_id": kat_dict[p_kat]
-                        }
-                        supabase.table("produkty").insert(new_prod).execute()
-                        st.success("Dodano produkt!")
-                        st.rerun()
+                        try:
+                            # KLUCZOWA POPRAWKA: int() zamienia 3.0 na 3
+                            new_prod = {
+                                "nazwa": p_nazwa,
+                                "cena": int(p_cena), 
+                                "liczba": int(p_liczba),
+                                "kategoria_id": kat_dict[p_kat]
+                            }
+                            supabase.table("produkty").insert(new_prod).execute()
+                            st.success("Dodano produkt!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Błąd zapisu: {e}")
             except Exception as e:
                 st.error(f"Błąd formularza: {e}")
 
