@@ -3,7 +3,7 @@ from supabase import create_client, Client
 import pandas as pd
 from datetime import datetime
 
-# --- 1. KONFIGURACJA I POŁĄCZENIE ---
+# --- 1. POŁĄCZENIE Z BAZĄ ---
 @st.cache_resource
 def init_connection():
     try:
@@ -11,42 +11,32 @@ def init_connection():
         key = st.secrets["SUPABASE_KEY"]
         return create_client(url, key)
     except Exception as e:
-        st.error(f"❌ Błąd połączenia: {e}")
+        st.error(f"❌ Krytyczny błąd połączenia: {e}")
         return None
 
 supabase = init_connection()
 
 def main():
-    # Konfiguracja strony
-    st.set_page_config(page_title="Magazyn U Sąsiada", layout="wide", page_icon="🏪")
+    # Konfiguracja okna przeglądarki
+    st.set_page_config(page_title="Lokalny Sklepik - Magazyn", layout="wide", page_icon="🛍️")
     
-    # --- CUSTOM STYLING (FANCY LOOK) ---
+    # --- ZAAWANSOWANY DESIGN (CSS) ---
     st.markdown("""
         <style>
-        /* Styl dla całego tła */
-        .main { background-color: #f8f9fa; }
-        
-        /* Stylizacja nagłówka */
-        .main-title {
-            color: #1E3A8A;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            font-weight: bold;
-            text-align: center;
-            padding: 20px;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            margin-bottom: 30px;
-        }
-        
-        /* Stylizacja kart metryk */
-        div[data-testid="stMetricValue"] { font-size: 24px; color: #1E3A8A; }
-        div[data-testid="metric-container"] {
-            background-color: white;
+        .main { background-color: #f0f2f6; }
+        .stMetric { 
+            background-color: #ffffff; 
+            border-radius: 10px; 
             padding: 15px;
-            border-radius: 12px;
-            border-left: 5px solid #1E3A8A;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        .header-box {
+            background: linear-gradient(90deg, #2E7D32 0%, #4CAF50 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 15px;
+            text-align: center;
+            margin-bottom: 2rem;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -54,130 +44,139 @@ def main():
     if not supabase:
         st.stop()
 
-    # --- 2. ROZBUDOWANY PASEK BOCZNY ---
+    # --- BOCZNY PANEL NAWIGACYJNY ---
     with st.sidebar:
-        st.markdown("<h1 style='text-align: center;'>🏪</h1>", unsafe_allow_html=True)
-        st.markdown("<h2 style='text-align: center;'>U Sąsiada</h2>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; color: gray;'>System Zarządzania Magazynem</p>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center;'>🛍️</h1>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center;'>Lokalny Sklepik</h2>", unsafe_allow_html=True)
         st.divider()
         
-        menu = ["📊 Panel Analityczny", "🛒 Spis Produktów", "📂 Kategorie", "➕ Zarządzanie Bzą"]
-        choice = st.selectbox("Wybierz moduł:", menu)
+        menu = ["📈 Panel Analityczny", "📋 Stan Magazynu", "📂 Kategorie", "⚙️ Zarządzanie"]
+        choice = st.selectbox("Nawigacja:", menu)
         
         st.divider()
-        # Dodatki w pasku bocznym
-        st.subheader("Status Systemu")
-        st.success("✅ Serwer: Połączono")
-        st.info(f"🕒 Sesja: {datetime.now().strftime('%H:%M:%S')}")
-        
-        with st.expander("ℹ️ Pomoc i Wsparcie"):
-            st.write("W razie problemów skontaktuj się z administratorem sieci.")
-            st.write("Wersja: 2.1.0-stable")
+        st.markdown("### 🟢 Status Systemu")
+        st.info(f"Ostatnia aktualizacja: {datetime.now().strftime('%H:%M')}")
+        st.caption("System Zarządzania v3.0")
 
-    # Nagłówek główny
-    st.markdown("<div class='main-title'>🏪 System Zarządzania Magazynem Sklepu Osiedlowego 'U SĄSIADA'</div>", unsafe_allow_html=True)
+    # --- NAGŁÓWEK GŁÓWNY ---
+    st.markdown(f"""
+        <div class='header-box'>
+            <h1 style='margin:0;'>🛍️ LOKALNY SKLEPIK</h1>
+            <p style='margin:0; opacity: 0.9;'>System Ewidencji Towarów i Raportowania</p>
+        </div>
+    """, unsafe_allow_html=True)
 
-    # --- 3. MODUŁY ---
-    if choice == "📊 Panel Analityczny":
+    # --- MODUŁY ---
+    
+    if choice == "📈 Panel Analityczny":
+        st.subheader("📊 Statystyki Sprzedażowe i Zapasy")
         try:
             res = supabase.table("produkty").select("*").execute()
             if res.data:
                 df = pd.DataFrame(res.data)
                 
-                # Metryki
-                c1, c2, c3, c4 = st.columns(4)
+                # Metryki KPI
+                m1, m2, m3, m4 = st.columns(4)
                 total_val = (df['cena'] * df['liczba']).sum()
-                c1.metric("Wartość towaru", f"{total_val:,.2f} zł")
-                c2.metric("Suma sztuk", f"{int(df['liczba'].sum())}")
-                c3.metric("Rodzaje towarów", len(df))
-                
                 low_stock = df[df['liczba'] < 5]
-                c4.metric("Braki ( <5 )", len(low_stock), delta_color="inverse")
+                
+                m1.metric("Wartość towaru", f"{total_val:,.2f} zł")
+                m2.metric("Suma jednostek", f"{int(df['liczba'].sum())} szt.")
+                m3.metric("Liczba produktów", len(df))
+                m4.metric("Braki ( < 5szt )", len(low_stock), delta="- Do zamówienia" if len(low_stock) > 0 else "OK")
 
                 st.divider()
                 
-                col_left, col_right = st.columns([2, 1])
-                with col_left:
-                    st.subheader("📈 Wykres Stanów")
+                col_chart, col_low = st.columns([2, 1])
+                with col_chart:
+                    st.write("### 📦 Dostępność produktów")
                     st.bar_chart(df.set_index("nazwa")["liczba"])
                 
-                with col_right:
-                    st.subheader("⚠️ Raport Braków")
+                with col_low:
+                    st.write("### ⚠️ Alarmy braków")
                     if not low_stock.empty:
-                        st.error("Uzupełnij te produkty!")
-                        st.dataframe(low_stock[['nazwa', 'liczba']], hide_index=True)
+                        st.dataframe(low_stock[['nazwa', 'liczba']], use_container_width=True, hide_index=True)
                     else:
-                        st.success("Wszystkie stany OK!")
+                        st.success("Wszystkie stany w normie.")
 
+                # Eksport danych
                 st.divider()
-                st.subheader("📥 Eksport Raportu")
                 csv = df.to_csv(index=False).encode('utf-8')
-                st.download_button("Pobierz raport do Excela (CSV)", csv, "raport_sklep.csv", "text/csv")
-            else:
-                st.info("Brak danych w systemie.")
+                st.download_button(
+                    label="📥 Pobierz Pełny Raport CSV",
+                    data=csv,
+                    file_name=f"raport_lokalny_sklepik_{datetime.now().strftime('%Y%m%d')}.csv",
+                    mime='text/csv',
+                )
         except Exception as e:
-            st.error(f"Błąd dashboardu: {e}")
+            st.error(f"Błąd ładowania: {e}")
 
-    elif choice == "🛒 Spis Produktów":
-        st.subheader("🛒 Aktualna Lista Produktów")
+    elif choice == "📋 Stan Magazynu":
+        st.subheader("📋 Aktualna lista produktów")
         try:
             res = supabase.table("produkty").select("*").execute()
-            # Używamy st.dataframe z dodatkowymi parametrami stylizacji
             st.dataframe(
                 res.data, 
                 use_container_width=True, 
                 hide_index=True,
                 column_config={
-                    "cena": st.column_config.NumberColumn("Cena (zł)", format="%.2f PLN"),
-                    "liczba": st.column_config.ProgressColumn("Stan Magazynowy", min_value=0, max_value=100)
+                    "nazwa": "Nazwa Produktu",
+                    "cena": st.column_config.NumberColumn("Cena (PLN)", format="%d zł"),
+                    "liczba": st.column_config.ProgressColumn("Ilość", min_value=0, max_value=100),
+                    "kategoria_id": "Kategoria (ID)"
                 }
             )
         except Exception as e:
             st.error(f"Błąd: {e}")
 
     elif choice == "📂 Kategorie":
-        st.subheader("📂 Zdefiniowane Kategorie Towarów")
-        res = supabase.table("kategorie").select("*").execute()
-        st.table(res.data)
+        st.subheader("📂 Dostępne Kategorie")
+        try:
+            res = supabase.table("kategorie").select("*").execute()
+            st.table(res.data)
+        except Exception as e:
+            st.error(f"Błąd: {e}")
 
-    elif choice == "➕ Zarządzanie Bzą":
-        t1, t2 = st.tabs(["Dodaj Produkt", "Dodaj Kategorię"])
+    elif choice == "⚙️ Zarządzanie":
+        st.subheader("⚙️ Panel Administracyjny")
+        t_prod, t_kat = st.tabs(["➕ Dodaj Produkt", "📁 Dodaj Kategorię"])
         
-        with t2:
+        with t_kat:
             with st.form("f_kat"):
-                n_kat = st.text_input("Nazwa nowej kategorii")
-                o_kat = st.text_area("Opis")
-                if st.form_submit_button("Zatwierdź kategorię"):
-                    supabase.table("kategorie").insert({"Nazwa": n_kat, "Opis": o_kat}).execute()
-                    st.success("Kategoria została utworzona!")
+                # Używamy wielkich liter zgodnie z Twoją strukturą bazy dla kategorii
+                kn = st.text_input("Nazwa kategorii")
+                ko = st.text_area("Opis")
+                if st.form_submit_button("Dodaj kategorię"):
+                    supabase.table("kategorie").insert({"Nazwa": kn, "Opis": ko}).execute()
+                    st.success("Kategoria dodana!")
                     st.rerun()
 
-        with t1:
+        with t_prod:
             res_k = supabase.table("kategorie").select("id, Nazwa").execute()
-            kat_dict = {item['Nazwa']: item['id'] for item in res_k.data} if res_k.data else {}
+            kat_map = {item['Nazwa']: item['id'] for item in res_k.data} if res_k.data else {}
             
             with st.form("f_prod"):
-                c1, c2 = st.columns(2)
-                p_nazwa = c1.text_input("Nazwa towaru")
-                p_kat = c2.selectbox("Kategoria", options=list(kat_dict.keys()))
+                f1, f2 = st.columns(2)
+                p_n = f1.text_input("Nazwa produktu")
+                p_k = f2.selectbox("Kategoria", options=list(kat_map.keys()))
                 
-                c3, c4 = st.columns(2)
-                p_cena = c3.number_input("Cena zakupu", min_value=0, step=1)
-                p_liczba = c4.number_input("Ilość dostarczona", min_value=0, step=1)
+                f3, f4 = st.columns(2)
+                p_c = f3.number_input("Cena (zł)", min_value=0, step=1)
+                p_l = f4.number_input("Liczba sztuk", min_value=0, step=1)
                 
-                if st.form_submit_button("✅ Zaksięguj Produkt"):
-                    if p_nazwa:
-                        new_data = {
-                            "nazwa": p_nazwa,
-                            "cena": int(p_cena),
-                            "liczba": int(p_liczba),
-                            "kategoria_id": kat_dict[p_kat]
+                if st.form_submit_button("Dodaj produkt"):
+                    if p_n and kat_map:
+                        # Produkty - małe litery, Kategorie - wielkie litery
+                        data = {
+                            "nazwa": p_n,
+                            "cena": int(p_c),
+                            "liczba": int(p_l),
+                            "kategoria_id": kat_map[p_k]
                         }
-                        supabase.table("produkty").insert(new_data).execute()
+                        supabase.table("produkty").insert(data).execute()
                         st.balloons()
-                        st.success(f"Produkt {p_nazwa} został dodany do bazy!")
-                    else:
-                        st.error("Błąd: Nazwa produktu nie może być pusta!")
+                        st.success(f"Dodano produkt: {p_n}")
+                        st.rerun()
 
 if __name__ == "__main__":
     main()
