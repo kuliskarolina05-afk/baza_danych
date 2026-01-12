@@ -66,3 +66,31 @@ def main():
         # Pobieranie kategorii (mała litera)
         kategorie_opcje = {}
         try:
+            res_kat = supabase.table("kategorie").select("id, nazwa").execute()
+            kategorie_opcje = {item['nazwa']: item['id'] for item in res_kat.data} if res_kat.data else {}
+        except Exception as e:
+            st.error(f"Nie udało się pobrać kategorii: {e}")
+
+        with st.form("form_prod", clear_on_submit=True):
+            nazwa_prod = st.text_input("Nazwa produktu")
+            cena = st.number_input("Cena", min_value=0.0, format="%.2f")
+            ilosc = st.number_input("Ilość", min_value=0, step=1)
+            wybrana_kat = st.selectbox("Kategoria", list(kategorie_opcje.keys()) if kategorie_opcje else ["Brak"])
+            
+            if st.form_submit_button("Dodaj produkt"):
+                if nazwa_prod and kategorie_opcje:
+                    try:
+                        # Używamy dużej litery 'Produkty'
+                        data = {
+                            "nazwa": nazwa_prod,
+                            "cena": cena,
+                            "ilosc": ilosc,
+                            "kategoria_id": kategorie_opcje[wybrana_kat]
+                        }
+                        supabase.table("Produkty").insert(data).execute()
+                        st.success(f"Dodano produkt: {nazwa_prod}")
+                    except Exception as e:
+                        st.error(f"Błąd podczas dodawania: {e}")
+
+if __name__ == "__main__":
+    main()
