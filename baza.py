@@ -3,7 +3,7 @@ from supabase import create_client, Client
 import pandas as pd
 from datetime import datetime
 
-# --- 1. POŁĄCZENIE ---
+# --- 1. POŁĄCZENIE Z BAZĄ ---
 @st.cache_resource
 def init_connection():
     try:
@@ -11,75 +11,145 @@ def init_connection():
         key = st.secrets["SUPABASE_KEY"]
         return create_client(url, key)
     except Exception as e:
-        st.error(f"❌ Błąd połączenia: {e}")
+        st.error(f"❌ Krytyczny błąd połączenia: {e}")
         return None
 
 supabase = init_connection()
 
 def main():
-    st.set_page_config(page_title="Lokalny Sklepik", layout="wide", page_icon="🛍️")
+    st.set_page_config(page_title="Lokalny Sklepik - Magazyn", layout="wide", page_icon="🛍️")
     
-    # CSS dla jednolitego tła
+    # --- POWRÓT DO PEŁNEGO DESIGNU CSS ---
     st.markdown("""
         <style>
-        .stApp, .main, div[data-testid="metric-container"] { background-color: #f0f2f6 !important; }
-        div[data-testid="metric-container"] { border: none !important; box-shadow: none !important; }
-        .header-box { background: linear-gradient(90deg, #2E7D32 0%, #4CAF50 100%); color: white; padding: 1.5rem; border-radius: 15px; text-align: center; margin-bottom: 2rem; }
+        .stApp, .main, div[data-testid="metric-container"] {
+            background-color: #f0f2f6 !important;
+        }
+        div[data-testid="metric-container"] {
+            border: none !important;
+            box-shadow: none !important;
+        }
+        .header-box {
+            background: linear-gradient(90deg, #2E7D32 0%, #4CAF50 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 15px;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
         </style>
     """, unsafe_allow_html=True)
 
-    if not supabase: st.stop()
+    if not supabase:
+        st.stop()
 
-    # --- MENU ---
+    # --- BOCZNY PANEL (PEŁNY) ---
     with st.sidebar:
-        st.markdown("<h2 style='text-align: center;'>🛍️ Lokalny Sklepik</h2>", unsafe_allow_html=True)
-        choice = st.selectbox("Nawigacja:", ["📈 Panel Analityczny", "📋 Stan Magazynu", "📂 Kategorie", "⚙️ Zarządzanie"])
+        st.markdown("<h1 style='text-align: center;'>🛍️</h1>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center;'>Lokalny Sklepik</h2>", unsafe_allow_html=True)
+        st.divider()
+        menu = ["📈 Panel Analityczny", "📋 Stan Magazynu", "📂 Kategorie", "⚙️ Zarządzanie"]
+        choice = st.selectbox("Nawigacja:", menu)
+        st.divider()
+        st.info(f"Aktualizacja: {datetime.now().strftime('%H:%M')}")
+        st.caption("System Zarządzania v3.5")
 
-    st.markdown("<div class='header-box'><h1 style='margin:0;'>🛍️ LOKALNY SKLEPIK</h1></div>", unsafe_allow_html=True)
+    # NAGŁÓWEK
+    st.markdown(f"<div class='header-box'><h1 style='margin:0;'>🛍️ LOKALNY SKLEPIK</h1><p style='margin:0; opacity: 0.9;'>Ewidencja Towarów i Przyjęcia Dostaw</p></div>", unsafe_allow_html=True)
 
-    # --- MODUŁ KATEGORIE (POPRAWIONY) ---
-    if choice == "📂 Kategorie":
-        st.subheader("📂 Kategorie Towarów")
-        res = supabase.table("kategorie").select("*").execute()
-        # hide_index=True usuwa kolumnę 0, 1, 2...
-        st.dataframe(res.data, use_container_width=True, hide_index=True)
+    # --- 2. MODUŁY ---
+    
+    if choice == "📈 Panel Analityczny":
+        try:
+            res = supabase.table("produkty").select("*").execute()
+            if res.data:
+                df = pd.DataFrame(res.data)
+                df['wartosc_total'] = df['cena'] * df['liczba']
+                
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Wartość towaru", f"{df['wartosc_total'].sum():,.2f} zł")
+                m2.metric("Suma jednostek", f"{int(df['liczba'].sum())} szt.")
+                m3.metric("Liczba produktów", len(df))
+                
+                low_stock = df[df['liczba'] < 5]
+                m4.metric("Braki ( < 5szt )", len(low_stock), delta="- Do zamówienia" if len(low_stock) > 0 else "OK")
 
-    # --- MODUŁ STAN MAGAZYNU (POPRAWIONY) ---
+                st.divider()
+                st.write("### 📦 Ilość sztuk w magazynie")
+                st.bar_chart(df.set_index("nazwa")["liczba"])
+
+                st.divider()
+                st.write("### ⚠️ Raport krytyczny")
+                if not low_stock.empty:
+                    st.dataframe(low_stock[['nazwa', 'liczba']], use_container_width=True, hide_index=True)
+                else:
+                    st.success("Wszystkie stany w normie.")
+        except Exception as e:
+            st.error(f"Błąd ładowania: {e}")
+
     elif choice == "📋 Stan Magazynu":
-        st.subheader("📋 Aktualny Stan")
+        st.subheader("📋 Aktualna lista produktów")
         res = supabase.table("produkty").select("*").execute()
-        st.dataframe(res.data, use_container_width=True, hide_index=True)
+        # hide_index=True usuwa szarą kolumnę
+        st.dataframe(res.data, use_container_width=True, hide_index=True, column_config={
+            "nazwa": "Nazwa Produktu", 
+            "cena": st.column_config.NumberColumn("Cena", format="%d zł"),
+            "liczba": st.column_config.ProgressColumn("Ilość", min_value=0, max_value=100)
+        })
 
-    # --- MODUŁ ANALITYCZNY ---
-    elif choice == "📈 Panel Analityczny":
-        res = supabase.table("produkty").select("*").execute()
-        if res.data:
-            df = pd.DataFrame(res.data)
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Suma sztuk", int(df['liczba'].sum()))
-            m2.metric("Liczba pozycji", len(df))
-            m3.metric("Wartość (szacunkowa)", f"{(df['cena']*df['liczba']).sum()} zł")
-            st.bar_chart(df.set_index("nazwa")["liczba"])
-            st.write("### ⚠️ Niskie stany")
-            st.dataframe(df[df['liczba'] < 5], use_container_width=True, hide_index=True)
+    elif choice == "📂 Kategorie":
+        st.subheader("📂 Kategorie Towarów")
+        try:
+            res = supabase.table("kategorie").select("*").execute()
+            # hide_index=True usuwa szarą kolumnę
+            st.dataframe(res.data, use_container_width=True, hide_index=True, column_config={
+                "id": "ID",
+                "Nazwa": "Nazwa Kategorii",
+                "Opis": "Opis asortymentu"
+            })
+        except Exception as e:
+            st.error(f"Błąd: {e}")
 
-    # --- ZARZĄDZANIE ---
     elif choice == "⚙️ Zarządzanie":
-        t_dostawa, t_prod, t_kat = st.tabs(["🚚 Dostawa", "➕ Produkt", "📁 Kategoria"])
-        
-        with t_kat:
-            with st.form("f_kat"):
-                n = st.text_input("Nazwa (np. Nabiał)")
-                o = st.text_input("Opis (np. Mleka, sery, jogurty)")
-                if st.form_submit_button("Dodaj"):
-                    supabase.table("kategorie").insert({"Nazwa": n, "Opis": o}).execute()
-                    st.success("Dodano!")
-                    st.rerun()
+        st.subheader("⚙️ Operacje Magazynowe")
+        t_dostawa, t_prod, t_kat = st.tabs(["🚚 Przyjmij Dostawę", "➕ Nowy Produkt", "📁 Nowa Kategoria"])
         
         with t_dostawa:
-            # Tutaj logika dodawania sztuk (którą już masz)
-            st.info("Wybierz produkt i dodaj ilość sztuk.")
-            # ... (Twój kod dostawy)
+            res_p = supabase.table("produkty").select("id, nazwa, liczba").execute()
+            if res_p.data:
+                prod_list = {item['nazwa']: (item['id'], item['liczba']) for item in res_p.data}
+                with st.form("form_dostawa", clear_on_submit=True):
+                    wybrany_p = st.selectbox("Wybierz produkt", options=list(prod_list.keys()))
+                    ilosc_nowa = st.number_input("Ile sztuk dowieziono?", min_value=1, step=1)
+                    if st.form_submit_button("Zatwierdź dostawę"):
+                        p_id, stara_liczba = prod_list[wybrany_p]
+                        supabase.table("produkty").update({"liczba": stara_liczba + ilosc_nowa}).eq("id", p_id).execute()
+                        st.success(f"🚚 Zaktualizowano stan dla: {wybrany_p}")
+                        st.rerun()
+
+        with t_kat:
+            with st.form("f_kat"):
+                kn = st.text_input("Nazwa (np. Nabiał)")
+                ko = st.text_area("Opis (np. Sery, jogurty, mleka)")
+                if st.form_submit_button("Dodaj kategorię"):
+                    supabase.table("kategorie").insert({"Nazwa": kn, "Opis": ko}).execute()
+                    st.success("Kategoria dodana!")
+                    st.rerun()
+
+        with t_prod:
+            res_k = supabase.table("kategorie").select("id, Nazwa").execute()
+            kat_map = {item['Nazwa']: item['id'] for item in res_k.data} if res_k.data else {}
+            with st.form("f_prod"):
+                c1, c2 = st.columns(2)
+                p_n, p_k = c1.text_input("Nazwa produktu"), c2.selectbox("Kategoria", options=list(kat_map.keys()))
+                c3, c4 = st.columns(2)
+                p_c, p_l = c3.number_input("Cena", min_value=0, step=1), c4.number_input("Liczba", min_value=0, step=1)
+                if st.form_submit_button("Dodaj produkt"):
+                    if p_n and kat_map:
+                        supabase.table("produkty").insert({"nazwa": p_n, "cena": int(p_c), "liczba": int(p_l), "kategoria_id": kat_map[p_k]}).execute()
+                        st.balloons()
+                        st.success("Produkt dodany!")
+                        st.rerun()
 
 if __name__ == "__main__":
     main()
